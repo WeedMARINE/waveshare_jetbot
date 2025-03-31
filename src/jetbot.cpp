@@ -9,6 +9,8 @@
 #include <boost/bind.hpp>
 
 #include "rclcpp/rclcpp.hpp"
+#include "rcl_interfaces/msg/set_parameters_result.hpp"
+#include "rclcpp_components/register_node_macro.hpp"
 #include "tf2/LinearMath/Quaternion.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 #include "tf2_ros/transform_broadcaster.h"
@@ -93,6 +95,12 @@ class WaveshareJetbotNode : public rclcpp::Node
             angular_correction = this->declare_parameter<double>("angular_correction", 1.0);
             SetParams(linear_correction, angular_correction);
 
+            //Get PID parameters from configuration file
+            kp = this->declare_parameter<int>("kp", 350);
+            ki = this->declare_parameter<int>("ki", 120);
+            kd = this->declare_parameter<int>("kd", 0);
+            SetPID(kp, ki, kd);
+
             // Create a subscriber for the Twist message
             twist_cmd_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
             "cmd_vel", 10, std::bind(&WaveshareJetbotNode::twist_cmd_callback, this, std::placeholders::_1));
@@ -108,8 +116,10 @@ class WaveshareJetbotNode : public rclcpp::Node
             lset_pub_ = this->create_publisher<std_msgs::msg::Int32>("motor/lset", 10);
             rset_pub_ = this->create_publisher<std_msgs::msg::Int32>("motor/rset", 10);
 
-            //TODO: set pid with service (ROS2)
-            
+            //register pid parameter callback
+            on_set_parameters_callback_handle_ = this->add_on_set_parameters_callback(
+                std::bind(&WaveshareJetbotNode::pid_parameters_callback, this, std::placeholders::_1));
+
             RCLCPP_INFO(this->get_logger(),"Node initialized");
             if (debug) {RCLCPP_INFO(this->get_logger(), "need_exit: %s", need_exit ? "true" : "false");}
         }
@@ -419,14 +429,54 @@ class WaveshareJetbotNode : public rclcpp::Node
             RCLCPP_INFO(this->get_logger(), "Received Twist message:x: %.2f, y: %.2f, yaw: %.2f", x,y, yaw);
         }
 
-        /*TODO:pid parameter set callback function*/
-        // void pidConfig_callback(jetbot_pro::pidConfig &config)
-        // {
-        //     kp = config.kp;
-        //     ki = config.ki;
-        //     kd = config.kd;
-        //     SetPID(kp,ki,kd);
-        // }
+        /*pid parameter set callback function*/
+        rcl_interfaces::msg::SetParametersResult pid_parameters_callback(std::vector<rclcpp::Parameter> parameters) {
+          rcl_interfaces::msg::SetParametersResult result;
+          result.successful = true;
+  
+          for (const auto &param : parameters) {
+            // kp, ki, and kd must be between 0.0 and 2000.0
+            if (param.get_name() == "kp") {
+              if (param.get_value<int>() < 0 || param.get_value<int>() > 2000) {
+                result.successful = false;
+                result.reason = "kp must be between 0 and 2000";
+                RCLCPP_WARN(this->get_logger(), "Failed to update kp: %s", result.reason.c_str());
+                break;
+              } else {
+                kp = param.get_value<int>();
+                SetPID(kp, ki, kd);
+                RCLCPP_INFO(this->get_logger(), "Updated kp to: %d", kp);
+              }
+            } 
+            else if (param.get_name() == "ki") {
+              if (param.get_value<int>() < 0 || param.get_value<int>() > 2000) {
+                result.successful = false;
+                result.reason = "ki must be between 0 and 2000";
+                RCLCPP_WARN(this->get_logger(), "Failed to update ki: %s", result.reason.c_str());
+                break;
+              } else {
+                ki = param.get_value<int>();
+                SetPID(kp, ki, kd);
+                RCLCPP_INFO(this->get_logger(), "Updated ki to: %d", ki);
+              }
+            } 
+            else if (param.get_name() == "kd") {
+              if (param.get_value<int>() < 0 || param.get_value<int>() > 2000) {
+                result.successful = false;
+                result.reason = "kd must be between 0 and 2000";
+                RCLCPP_WARN(this->get_logger(), "Failed to update kd: %s", result.reason.c_str());
+                break;
+              } else {
+                kd = param.get_value<int>();
+                SetPID(kp, ki, kd);
+                RCLCPP_INFO(this->get_logger(), "Updated kd to: %d", kd);
+              }
+            }
+          }
+          return result;
+        };
+        rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr
+        on_set_parameters_callback_handle_;
 
         tf2::Quaternion createQuaternionFromYaw(double yaw)
         {
