@@ -55,6 +55,9 @@ int main(int argc, char * argv[])
     
     // Create the teleop_joy node
     auto node = std::make_shared<teleop_joy>();
+
+    // Set the desired command rate (e.g., 10 Hz)
+    rclcpp::Rate rate(20.0); // 20 Hz
     
     // Spin the node to process callbacks
     rclcpp::spin(node);
