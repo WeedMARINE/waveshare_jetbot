@@ -1,6 +1,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "geometry_msgs/msg/twist.hpp"
-#include <sensor_msgs/msg/joy.hpp>
+#include "sensor_msgs/msg/joy.hpp"
 
 class teleop_joy : public rclcpp::Node
 {
@@ -33,7 +33,7 @@ class teleop_joy : public rclcpp::Node
             if (msg->axes[1] != 0.0 || msg->axes[0] != 0.0)
             {
                 // Set the linear and angular velocities based on joystick input
-                cmd_vel_.linear.x = msg->axes[1];
+                cmd_vel_.linear.x = msg->axes[1]*0.3; // Scale the linear velocity
                 cmd_vel_.angular.z = msg->axes[0];
             }
             else
@@ -47,3 +47,20 @@ class teleop_joy : public rclcpp::Node
             cmd_vel_pub_->publish(cmd_vel_);
         }
 };
+
+int main(int argc, char * argv[])
+{
+    // Initialize the ROS 2 system
+    rclcpp::init(argc, argv);
+    
+    // Create the teleop_joy node
+    auto node = std::make_shared<teleop_joy>();
+    
+    // Spin the node to process callbacks
+    rclcpp::spin(node);
+    
+    // Shutdown the ROS 2 system
+    rclcpp::shutdown();
+    
+    return 0;
+}

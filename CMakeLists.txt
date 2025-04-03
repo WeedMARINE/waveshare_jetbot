@@ -29,10 +29,16 @@ find_package(std_msgs REQUIRED)
 include(ConfigExtras.cmake)
 
 add_executable(waveshare_jetbot src/jetbot.cpp)
+add_executable(teleop_joy src/teleop_joy.cpp)
 ament_target_dependencies(waveshare_jetbot rclcpp tf2 tf2_ros geometry_msgs nav_msgs sensor_msgs std_msgs)
+ament_target_dependencies(teleop_joy rclcpp tf2 tf2_ros geometry_msgs nav_msgs sensor_msgs std_msgs)
 
 install(TARGETS
   waveshare_jetbot
+  DESTINATION lib/${PROJECT_NAME})
+
+install(TARGETS
+  teleop_joy
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
