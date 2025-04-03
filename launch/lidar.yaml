@@ -1,0 +1,25 @@
+launch:
+
+- node:
+    pkg: "rplidar_ros"
+    exec: "rplidar_node"
+    parameters:
+      - serial_port: "/dev/ttyACM1"
+      - serial_baudrate: 115200
+      - frame_id: "laser_frame"
+      - inverted: false
+      - angle_compensate: true
+      - scan_mode: "Sensitivity"
+
+- node:
+    pkg: "tf2_ros"
+    exec: "static_transform_publisher"
+    parameters:
+      - x: 0.0
+      - y: 0.0
+      - z: 0.15
+      - roll: 3.14
+      - pitch: 0.0
+      - yaw: 0.0
+      - frame_id: "base_footprint"
+      - child_frame_id: "laser_frame"
