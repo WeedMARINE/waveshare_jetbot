@@ -1,0 +1,11 @@
+launch:
+
+- node:
+    pkg: "waveshare_jetbot"
+    exec: "teleop_joy"
+    # name: "teleop_joy"
+    # namespace: "turtlesim1"
+
+- node:
+    pkg: "joy"
+    exec: "joy_node"
