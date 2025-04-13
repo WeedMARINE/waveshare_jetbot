@@ -20,4 +20,5 @@ launch:
 - node:
     pkg: "tf2_ros"
     exec: "static_transform_publisher"
-    args: "0.0 0.0 0.15 3.14 0.0 0.0 base_footprint laser_frame"
+    args: "0.0 0.0 0.15 3.14 0.0 0.0 base_link laser_frame"
+    name : "static_tf_base_link_to_laser_frame"

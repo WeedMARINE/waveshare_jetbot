@@ -1,0 +1,34 @@
+launch:
+
+- node:
+    pkg: "waveshare_jetbot"
+    exec: "jetbot"
+    param:
+      - name: "publish_odom_transform"
+        value: false
+    remap:
+      - from: "/odom"
+        to: "/odom_raw"
+
+- node:
+    pkg: "tf2_ros"
+    exec: "static_transform_publisher"
+    args: "0.0 0.0 0.0 0.0 0.0 0.0 base_link base_footprint"
+    name: "static_tf_base_link_to_base_footprint"
+
+- node:
+    pkg: "tf2_ros"
+    exec: "static_transform_publisher"
+    args: "0.0 0.0 0.07 0.0 0.0 0.0 base_link base_imu_link"
+    # args: "0.0 0.0 0.07 1.57 0.0 3.14 base_link base_imu_link"
+    name: "static_tf_base_link_to_base_imu_link"
+
+- node:
+    pkg: "robot_localization"
+    exec: "ekf_node"
+    param:
+      - from: /home/jetbot/ros2_ws/src/waveshare_jetbot/params/ekf_jetbot.yaml
+      # $(find-pkg-share robot_localization)/params/ekf_jetbot.yaml
+    remap:
+      - from: "/odometry/filtered"
+        to: "/odom"

@@ -89,17 +89,22 @@ class WaveshareJetbotNode : public rclcpp::Node
             baud_rate = this->declare_parameter<int>("baud_rate", 115200);
             serial_port_ = std::make_unique<SerialPort>(port_name, baud_rate);
 
-            //Get robot parameters from configuration file
+            //Get robot parameters 
             publish_odom_transform = this->declare_parameter<bool>("publish_odom_transform", true);
             linear_correction = this->declare_parameter<double>("linear_correction", 1.0);
             angular_correction = this->declare_parameter<double>("angular_correction", 1.0);
             SetParams(linear_correction, angular_correction);
 
-            //Get PID parameters from configuration file
+            //Get PID parameters 
             kp = this->declare_parameter<int>("kp", 350);
             ki = this->declare_parameter<int>("ki", 120);
             kd = this->declare_parameter<int>("kd", 0);
             SetPID(kp, ki, kd);
+
+            // Get IMU parameters 
+            imu_accel_offset_x = this->declare_parameter<double>("imu_accel_offset_x", -0.2741);
+            imu_accel_offset_y = this->declare_parameter<double>("imu_accel_offset_y", -0.3470);
+            imu_accel_offset_z = this->declare_parameter<double>("imu_accel_offset_z", -0.2192);
 
             // Create a subscriber for the Twist message
             twist_cmd_sub_ = this->create_subscription<geometry_msgs::msg::Twist>(
@@ -236,9 +241,9 @@ class WaveshareJetbotNode : public rclcpp::Node
                         imu_list[1]=((double)((int16_t)(data[6]*256+data[7]))/32768*2000/180*3.1415);
                         imu_list[2]=((double)((int16_t)(data[8]*256+data[9]))/32768*2000/180*3.1415);
                         //Acc 
-                        imu_list[3]=((double)((int16_t)(data[10]*256+data[11]))/32768*2*9.8);
-                        imu_list[4]=((double)((int16_t)(data[12]*256+data[13]))/32768*2*9.8);
-                        imu_list[5]=((double)((int16_t)(data[14]*256+data[15]))/32768*2*9.8);
+                        imu_list[3]=((double)((int16_t)(data[10]*256+data[11]))/32768*2*9.8)+imu_accel_offset_x;
+                        imu_list[4]=((double)((int16_t)(data[12]*256+data[13]))/32768*2*9.8)+imu_accel_offset_y;
+                        imu_list[5]=((double)((int16_t)(data[14]*256+data[15]))/32768*2*9.8)+imu_accel_offset_z;
                         //Angle 
                         imu_list[6]=((double)((int16_t)(data[16]*256+data[17]))/10.0);
                         imu_list[7]=((double)((int16_t)(data[18]*256+data[19]))/10.0);
@@ -254,9 +259,10 @@ class WaveshareJetbotNode : public rclcpp::Node
                         imu_msgs.linear_acceleration.y = imu_list[4];
                         imu_msgs.linear_acceleration.z = imu_list[5];
                         imu_msgs.orientation = tf2::toMsg(createQuaternionFromYaw(imu_list[8]/180*3.1415926));
-                        imu_msgs.orientation_covariance = {1e6, 0, 0, 0, 1e6, 0, 0, 0, 0.05};
-                        imu_msgs.angular_velocity_covariance = {1e6, 0, 0, 0, 1e6, 0, 0, 0, 1e6};
-                        imu_msgs.linear_acceleration_covariance = {1e-2, 0, 0, 0, 0, 0, 0, 0, 0};
+                        imu_msgs.orientation_covariance = {1e6, 0, 0, 0, 1e6, 0, 0, 0, 0.7};
+                        imu_msgs.angular_velocity_covariance = {1e6, 0, 0, 0, 1e6, 0, 0, 0, 0.4};
+                        // imu_msgs.angular_velocity_covariance = {1e6, 0, 0, 0, 1e6, 0, 0, 0, 1e6};
+                        imu_msgs.linear_acceleration_covariance = {0.2, 0, 0, 0, 0.2, 0, 0, 0, 0.2};
                         imu_pub_->publish(imu_msgs);
                     
                         odom_list[0]=((double)((int16_t)(data[22]*256+data[23]))/1000);
@@ -270,7 +276,7 @@ class WaveshareJetbotNode : public rclcpp::Node
                         //first, we'll publish the transform over tf
                         odom_trans.header.stamp = now_time;
                         odom_trans.header.frame_id = "odom";
-                        odom_trans.child_frame_id = "base_footprint";
+                        odom_trans.child_frame_id = "base_link";
             
                         odom_trans.transform.translation.x = odom_list[0];
                         odom_trans.transform.translation.y = odom_list[1];
@@ -293,22 +299,40 @@ class WaveshareJetbotNode : public rclcpp::Node
                         odom_msgs.pose.pose.orientation = odom_quat;
             
                         //set the velocity
-                        odom_msgs.child_frame_id = "base_footprint";
+                        odom_msgs.child_frame_id = "base_link";
                         odom_msgs.twist.twist.linear.x = odom_list[3]/((now_time-last_time).seconds());
                         odom_msgs.twist.twist.linear.y = odom_list[4]/((now_time-last_time).seconds());
                         odom_msgs.twist.twist.angular.z = odom_list[5]/((now_time-last_time).seconds());
-                        odom_msgs.twist.covariance = { 1e-9, 0, 0, 0, 0, 0, 
-                                                    0, 1e-3, 1e-9, 0, 0, 0, 
-                                                    0, 0, 1e6, 0, 0, 0,
-                                                    0, 0, 0, 1e6, 0, 0, 
-                                                    0, 0, 0, 0, 1e6, 0, 
-                                                    0, 0, 0, 0, 0, 0.1 };
-                        odom_msgs.pose.covariance = { 1e-9, 0, 0, 0, 0, 0, 
-                                                    0, 1e-3, 1e-9, 0, 0, 0, 
-                                                    0, 0, 1e6, 0, 0, 0,
-                                                    0, 0, 0, 1e6, 0, 0, 
-                                                    0, 0, 0, 0, 1e6, 0, 
-                                                    0, 0, 0, 0, 0, 1e3 };
+                        //set the covariance to very small value if robot is at rest
+                        if (odom_list[3] == 0 && odom_list[4] == 0) {
+                            odom_msgs.twist.covariance = { 1e-9, 0, 0, 0, 0, 0, 
+                                                        0, 1e-3, 1e-9, 0, 0, 0, 
+                                                        0, 0, 1e-9, 0, 0, 0,
+                                                        0, 0, 0, 1e-9, 0, 0, 
+                                                        0, 0, 0, 0, 1e-9, 0, 
+                                                        0, 0, 0, 0, 0, 1e-9 };
+                            odom_msgs.pose.covariance = { 1e-9, 0, 0, 0, 0, 0, 
+                                                        0, 1e-3, 1e-9, 0, 0, 0, 
+                                                        0, 0, 1e-9, 0, 0, 0,
+                                                        0, 0, 0, 1e-9, 0, 0, 
+                                                        0, 0, 0, 0, 1e-9, 0, 
+                                                        0, 0, 0, 0, 0, 1e3 };
+                        }
+                        //set the covariance to a larger value if robot is moving
+                        else{
+                            odom_msgs.twist.covariance = { 1e-4, 0, 0, 0, 0, 0, 
+                                                        0, 1e-4, 0, 0, 0, 0, 
+                                                        0, 0, 1e-9, 0, 0, 0,
+                                                        0, 0, 0, 1e-9, 0, 0, 
+                                                        0, 0, 0, 0, 1e-9, 0, 
+                                                        0, 0, 0, 0, 0, 1e-3 };
+                            odom_msgs.pose.covariance = { 0.25, 0, 0, 0, 0, 0, 
+                                                        0, 0.25, 0, 0, 0, 0, 
+                                                        0, 0, 1e-4, 0, 0, 0,
+                                                        0, 0, 0, 1e-4, 0, 0, 
+                                                        0, 0, 0, 0, 1e-4, 0, 
+                                                        0, 0, 0, 0, 0, 1e-4 };
+                        }
                         //publish the odom message
                         odom_pub_->publish(odom_msgs);
                         
@@ -346,6 +370,9 @@ class WaveshareJetbotNode : public rclcpp::Node
         int kd;
         double linear_correction;
         double angular_correction;
+        double imu_accel_offset_x;
+        double imu_accel_offset_y;
+        double imu_accel_offset_z;
 
         double x = 0.0;
         double y = 0.0;
