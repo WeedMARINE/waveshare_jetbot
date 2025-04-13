@@ -33,7 +33,7 @@ class teleop_joy : public rclcpp::Node
             if (msg->axes[6] != 0.0 || msg->axes[7] != 0.0)
             {
                 // Set the linear and angular velocities based on joystick input
-                cmd_vel_.linear.x = msg->axes[7]*0.5; // Scale the linear velocity
+                cmd_vel_.linear.x = msg->axes[7]*0.4; // Scale the linear velocity
                 cmd_vel_.angular.z = msg->axes[6];
             }
             else
